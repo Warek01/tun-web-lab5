@@ -1,4 +1,7 @@
-﻿using TumWebLab5.Models;
+﻿using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using TumWebLab5.Models;
 
 var url    = new CliParameter(args, "-u", true);
 var search = new CliParameter(args, "-s", true);
@@ -15,9 +18,9 @@ if (help.Found) {
 
 } else if (url is { Found: true, Value: not null }) {
   var http = new HttpModule();
-  
-  Console.WriteLine(http.Get(url.Value));
+
+  var message = http.Get(url.Value);
+  Console.WriteLine(message);
 } else if (search is { Found: true, Value: not null }) {
   throw new NotImplementedException();
 }
-

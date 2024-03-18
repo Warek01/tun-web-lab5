@@ -6,48 +6,56 @@ using System.Text.RegularExpressions;
 namespace TumWebLab5.Models;
 
 public class HttpModule {
-  private readonly HttpCache _cache = new HttpCache();
+  // private readonly HttpCache _cache = new HttpCache();
 
-  public HttpModule() { }
+  private const string RequestLine = "GET / HTTP/1.1";
 
-  public string Get(string url) {
+  public HttpMessage Get(string url) {
+    var regex = new Regex("^HTTPS?://", RegexOptions.IgnoreCase);
+
+    if (!regex.IsMatch(url))
+      url = "https://" + url;
+
+    return Get(new Uri(url));
+  }
+
+  public HttpMessage? Get(Uri uri) {
     try {
-      var socket  = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
-      var address = GetHostAddress(url);
-
-      if (address == null)
-        throw new Exception($"Failed to resolve {url}");
-
-      var ep = new IPEndPoint(address, 80);
-
-      socket.Connect(ep);
-
-      var buffer = new byte[1024 * 10];
-
-      socket.Receive(buffer);
-
-      Console.WriteLine(Encoding.UTF8.GetString(buffer));
-
-      socket.Close();
+      var content = Request(uri);
+      return new HttpMessage(content);
     } catch (Exception ex) {
       Console.ForegroundColor = ConsoleColor.Red;
-      Console.WriteLine($"Error requesting {url}");
+      Console.WriteLine($"Error requesting {uri.Host}");
       Console.ResetColor();
       Console.WriteLine();
       Console.WriteLine(ex);
-    }
 
-    return string.Empty;
+      return null;
+    }
   }
 
-  private IPAddress? GetHostAddress(string url) {
-    var regex = new Regex("^https?://");
+  private string Request(Uri uri) {
+    using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+    var headers =
+      $"""
+       Host: {uri.Host}
+       Connection: keep-alive
+       Accept: text/html
+       User-Agent: CSharpTests
+       """;
+    var request = $"""
+                   {RequestLine}
+                   {headers}
 
-    if (regex.Match(url).Success)
-      url = regex.Replace(url, string.Empty);
 
-    var hostInfo = Dns.GetHostEntry(url);
+                   """;
+    var buffer = new byte[1024];
 
-    return hostInfo.AddressList.FirstOrDefault();
+    socket.Connect(uri.Host, 80);
+    socket.Send(Encoding.UTF8.GetBytes(request));
+    socket.Receive(buffer);
+    socket.Close();
+
+    return Encoding.UTF8.GetString(buffer);
   }
 }
