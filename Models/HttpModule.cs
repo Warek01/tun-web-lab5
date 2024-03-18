@@ -10,7 +10,7 @@ public class HttpModule {
 
   private const string RequestLine = "GET / HTTP/1.1";
 
-  public HttpMessage Get(string url) {
+  public HttpMessage? Get(string url) {
     var regex = new Regex("^HTTPS?://", RegexOptions.IgnoreCase);
 
     if (!regex.IsMatch(url))
@@ -24,12 +24,7 @@ public class HttpModule {
       var content = Request(uri);
       return new HttpMessage(content);
     } catch (Exception ex) {
-      Console.ForegroundColor = ConsoleColor.Red;
-      Console.WriteLine($"Error requesting {uri.Host}");
-      Console.ResetColor();
-      Console.WriteLine();
-      Console.WriteLine(ex);
-
+      Utils.LogError($"Error requesting {uri.Host}", ex);
       return null;
     }
   }

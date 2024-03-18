@@ -6,6 +6,7 @@ public enum HttpRequestType {
   Patch,
   Put,
   Delete,
+  Other,
   /// <summary>Is response</summary>
   None,
 }

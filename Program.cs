@@ -6,6 +6,9 @@ using TumWebLab5.Models;
 var url    = new CliParameter(args, "-u", true);
 var search = new CliParameter(args, "-s", true);
 var help   = new CliParameter(args, "-h", false);
+var config = Config.Read("Config.json");
+
+Utils.LogError("Test", new Exception());
 
 if (help.Found) {
   Console.WriteLine(
@@ -15,7 +18,6 @@ if (help.Found) {
     go2web -h               # show this help
     """
   );
-
 } else if (url is { Found: true, Value: not null }) {
   var http = new HttpModule();
 
