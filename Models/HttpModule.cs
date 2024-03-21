@@ -41,7 +41,7 @@ public static partial class HttpModule {
       sslStream.Close();
       networkStream.Close();
 
-      var message = new HttpMessage(content);
+      var message = new HttpMessage(content, uri);
 
       if (message.Encoding == HttpEncoding.Gzip) {
         message.Body = DecompressFromGzip(message.Body);

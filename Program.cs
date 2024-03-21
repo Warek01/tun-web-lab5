@@ -27,7 +27,7 @@ if (options.Help) {
 
 if (options.Url != null) {
   if (options.Help) Utils.LogDivider();
-  RequestUrl(options.Url);
+  await RequestUrl(options.Url);
 }
 
 if (options.Search != null) {
@@ -37,7 +37,7 @@ if (options.Search != null) {
 
 return;
 
-void RequestUrl(string url) {
+async Task RequestUrl(string url) {
   HttpMessage? message = HttpModule.Get(url);
 
   if (message == null) {
@@ -45,12 +45,10 @@ void RequestUrl(string url) {
     return;
   }
 
-  Console.WriteLine(message);
-
   if (message.ResponseType == HttpResponseType.Redirect) {
     int redirectsCount = config.MaxRedirects;
 
-    while (redirectsCount-- > 0) {
+    while (redirectsCount-- > 0 && message.ResponseType != HttpResponseType.Ok) {
       Console.WriteLine($"Redirect: {url} -> {message.Headers["Location"]}");
       url     = message.Headers["Location"];
       message = HttpModule.Get(url);
@@ -59,16 +57,15 @@ void RequestUrl(string url) {
         Utils.LogError("Error parsing response");
         return;
       }
-
-      if (message.ResponseType == HttpResponseType.Ok) {
-        Console.WriteLine(message);
-        return;
-      }
     }
 
-    Console.WriteLine($"Reached max redirect count ({config.MaxRedirects})");
-    return;
+    if (redirectsCount == 0) {
+      Console.WriteLine($"Reached max redirect count ({config.MaxRedirects})");
+      return;
+    }
   }
 
-  Console.WriteLine(message);
+  var page = new HtmlPage(message.Body, message.Uri);
+  await page.Init();
+  page.Print();
 }

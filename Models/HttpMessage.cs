@@ -17,8 +17,11 @@ public partial class HttpMessage {
   public string                     Message      { get; set; }
   public string                     Body         { get; set; }
   public HttpEncoding               Encoding     { get; set; }
+  public Uri                        Uri          { get; set; }
 
-  public HttpMessage(string http) {
+  public HttpMessage(string http, Uri uri) {
+    Uri = uri;
+    
     Match match = ParseRegex.Match(http);
 
     RequestType = match.Groups["type"].Value.ToLower() switch {
@@ -89,9 +92,8 @@ public partial class HttpMessage {
     sb.AppendLine($"Message: {Message}");
     sb.AppendLine("Headers:");
 
-    foreach (var header in Headers) {
+    foreach (var header in Headers) 
       sb.AppendLine($"{header.Key}: {header.Value}");
-    }
 
     sb.AppendLine("Body:");
     sb.AppendLine(Body);
