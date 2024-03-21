@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace TumWebLab5.Models;
@@ -7,17 +8,18 @@ public partial class HttpMessage {
   private static readonly Regex ParseRegex  = GetParseRegex();
   private static readonly Regex HeaderRegex = GetHeaderRegex();
 
-  public readonly HttpRequestType            RequestType;
-  public readonly HttpResponseType           ResponseType;
-  public readonly string                     RawHeaders;
-  public readonly Dictionary<string, string> Headers;
-  public readonly string                     Version;
-  public readonly int                        Code;
-  public readonly string                     Message;
-  public readonly string                     Body;
+  public HttpRequestType            RequestType  { get; set; }
+  public HttpResponseType           ResponseType { get; set; }
+  public string                     RawHeaders   { get; set; }
+  public Dictionary<string, string> Headers      { get; set; }
+  public string                     Version      { get; set; }
+  public int                        Code         { get; set; }
+  public string                     Message      { get; set; }
+  public string                     Body         { get; set; }
+  public HttpEncoding               Encoding     { get; set; }
 
   public HttpMessage(string http) {
-    var match = ParseRegex.Match(http);
+    Match match = ParseRegex.Match(http);
 
     RequestType = match.Groups["type"].Value.ToLower() switch {
       "get"    => HttpRequestType.Get,
@@ -29,12 +31,24 @@ public partial class HttpMessage {
       _        => HttpRequestType.Other,
     };
 
-    Code       = int.Parse(match.Groups["code"].Value);
-    Version    = match.Groups["version"].Value;
-    Message    = match.Groups["message"].Value;
-    RawHeaders = match.Groups["headers"].Value;
-    Body       = match.Groups["body"].Value;
+    int.TryParse(
+      match.Groups["code"].Value,
+      NumberStyles.Integer,
+      CultureInfo.InvariantCulture,
+      out int code
+    );
+
+    Code       = code;
+    Version    = match.Groups["version"].Value.Trim();
+    Message    = match.Groups["message"].Value.Trim();
+    RawHeaders = match.Groups["headers"].Value.Trim();
+    Body       = match.Groups["body"].Value.Trim();
     Headers    = new Dictionary<string, string>();
+
+    // May end with '0' fsr
+    if (Body.EndsWith('0'))
+      Body = Body.TrimEnd('0');
+    // -----
 
     foreach (var header in RawHeaders.Split("\n")) {
       var headerMatch = HeaderRegex.Match(header);
@@ -44,7 +58,7 @@ public partial class HttpMessage {
       var key   = headerMatch.Groups["key"].Value;
       var value = headerMatch.Groups["value"].Value;
 
-      Headers.Add(key, value);
+      Headers.TryAdd(key, value);
     }
 
     ResponseType = Code switch {
@@ -55,6 +69,15 @@ public partial class HttpMessage {
       <= 599            => HttpResponseType.ServerError,
       _                 => HttpResponseType.Custom
     };
+
+    if (
+      Headers.TryGetValue("Content-Encoding", out string? encoding)
+      && encoding.Contains("gzip", StringComparison.CurrentCultureIgnoreCase)
+    ) {
+      Encoding = HttpEncoding.Gzip;
+    } else {
+      Encoding = HttpEncoding.Identity;
+    }
   }
 
   public override string ToString() {

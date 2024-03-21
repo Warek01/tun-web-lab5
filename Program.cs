@@ -1,9 +1,9 @@
 ﻿using System.Globalization;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
 using CommandLine;
 using TumWebLab5.Models;
+
+Thread.CurrentThread.CurrentCulture   = CultureInfo.InvariantCulture;
+Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
 
 using var cliParser = new Parser(s => {
   s.AutoHelp               = false;
@@ -23,11 +23,52 @@ if (options.Help) {
     go2web -h --help                 Show this help
     """
   );
-} else if (options.Url != null) {
-  var http = new HttpModule();
+}
 
-  var message = http.Get(options.Url);
-  Console.WriteLine(message);
-} else if (options.Search != null) {
+if (options.Url != null) {
+  if (options.Help) Utils.LogDivider();
+  RequestUrl(options.Url);
+}
+
+if (options.Search != null) {
+  if (options.Help || options.Url != null) Utils.LogDivider();
   throw new NotImplementedException();
+}
+
+return;
+
+void RequestUrl(string url) {
+  HttpMessage? message = HttpModule.Get(url);
+
+  if (message == null) {
+    Utils.LogError("Error parsing response");
+    return;
+  }
+
+  Console.WriteLine(message);
+
+  if (message.ResponseType == HttpResponseType.Redirect) {
+    int redirectsCount = config.MaxRedirects;
+
+    while (redirectsCount-- > 0) {
+      Console.WriteLine($"Redirect: {url} -> {message.Headers["Location"]}");
+      url     = message.Headers["Location"];
+      message = HttpModule.Get(url);
+
+      if (message == null) {
+        Utils.LogError("Error parsing response");
+        return;
+      }
+
+      if (message.ResponseType == HttpResponseType.Ok) {
+        Console.WriteLine(message);
+        return;
+      }
+    }
+
+    Console.WriteLine($"Reached max redirect count ({config.MaxRedirects})");
+    return;
+  }
+
+  Console.WriteLine(message);
 }
