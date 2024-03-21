@@ -1,6 +1,6 @@
 ﻿using CommandLine;
 
-namespace TumWebLab5.Models;
+namespace Go2Web.Models;
 
 public class CliOptions {
   [Option('u', "url", Required = false, HelpText = "Show page from URL")]

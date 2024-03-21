@@ -1,4 +1,4 @@
-﻿namespace TumWebLab5.Models;
+﻿namespace Go2Web.Models;
 
 public enum HttpResponseType {
   Progress,

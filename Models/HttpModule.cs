@@ -1,12 +1,13 @@
-﻿using System.Net.Security;
+﻿using System.IO.Compression;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.IO.Compression;
+using TumWebLab5.Models;
 
-namespace TumWebLab5.Models;
+namespace Go2Web.Models;
 
-public partial class HttpModule {
+public class HttpModule {
   private readonly Config _config;
 
   public HttpModule(Config config) {

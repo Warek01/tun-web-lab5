@@ -1,6 +1,6 @@
-﻿using System.Text;
+﻿using TumWebLab5.Models;
 
-namespace TumWebLab5.Models;
+namespace Go2Web.Models;
 
 public class HttpCache {
   private readonly string _cacheDirectory;

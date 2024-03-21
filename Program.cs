@@ -1,7 +1,7 @@
 ﻿using System.Globalization;
 using System.Text;
 using CommandLine;
-using TumWebLab5.Models;
+using Go2Web.Models;
 
 Thread.CurrentThread.CurrentCulture   = CultureInfo.InvariantCulture;
 Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
@@ -33,12 +33,13 @@ if (options.Help) {
 if (options.Url != null) {
   if (options.Help) Utils.LogDivider();
   
-  var uri = HttpModule.UrlToUri(options.Url);
+  var uri = HttpModule.UrlToUri(options.Url);   
   string? content = cache.Get(uri);
 
   if (content == null) {
     content = await http.RequestPage(uri);
     if (content == null) return;
+    Console.Write(content);
     cache.Add(uri, content);
   }
   else {

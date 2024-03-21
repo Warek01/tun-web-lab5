@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace TumWebLab5.Models;
+namespace Go2Web.Models;
 
 public class Config {
   [JsonPropertyName("MaxRedirects")]

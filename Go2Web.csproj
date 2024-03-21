@@ -6,6 +6,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AssemblyName>go2web</AssemblyName>
+        <RootNamespace>Go2Web</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

@@ -1,4 +1,4 @@
-﻿namespace TumWebLab5.Models;
+﻿namespace Go2Web.Models;
 
 public static class Utils {
   public static void LogError(string text) {
