@@ -1,30 +1,35 @@
-﻿namespace TumWebLab5.Models;
+﻿using System.Text;
+
+namespace TumWebLab5.Models;
 
 public class HttpCache {
-  public class Entry {
-    public string   Url       { get; }
-    public string   Value     { get; }
+  private readonly string _cacheDirectory;
+
+  public HttpCache(string cacheDirectory) {
+    _cacheDirectory = cacheDirectory;
+
+    if (!Directory.Exists(cacheDirectory))
+      Directory.CreateDirectory(cacheDirectory);
+  }
+
+  public void Add(Uri uri, string content) {
+    string path = Uri.EscapeDataString(uri.GetLeftPart(UriPartial.Path));
     
-    // TODO: timeout mechanism
-    // public DateTime CreatedAt { get; }
-    // public TimeSpan TTL   { get; }
-    // public bool     IsValid   { get; set; }
-
-    public Entry(string url, string value) {
-      Url   = url;
-      Value = value;
-    }
+    File.WriteAllText(
+      Path.Combine(_cacheDirectory, path),
+      content,
+      Config.GlobalEncoding
+    );
   }
 
-  private readonly List<Entry> _entries = new();
-
-  public HttpCache() { }
-
-  public void Add(Entry entry) {
-    _entries.Add(entry);
-  }
-
-  public string? Get(string url) {
-    return _entries.Find(e => e.Url == url)?.Value;
+  public string? Get(Uri uri) {
+    string path = Path.Combine(_cacheDirectory, Uri.EscapeDataString(uri.GetLeftPart(UriPartial.Path)));
+    
+    return File.Exists(path)
+      ? File.ReadAllText(
+        path,
+        Config.GlobalEncoding
+      )
+      : null;
   }
 }

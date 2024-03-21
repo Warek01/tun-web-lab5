@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Text;
 using CommandLine;
 using TumWebLab5.Models;
 
@@ -12,8 +13,12 @@ using var cliParser = new Parser(s => {
   s.IgnoreUnknownArguments = true;
   s.ParsingCulture         = CultureInfo.InvariantCulture;
 });
-var config  = Config.Read("Config.json");
 var options = Parser.Default.ParseArguments<CliOptions>(args).Value;
+
+Config.GlobalEncoding = Encoding.UTF8;
+var config = Config.Read("Config.json");
+var cache  = new HttpCache("Cache");
+var http   = new HttpModule(config);
 
 if (options.Help) {
   Console.WriteLine(
@@ -27,45 +32,22 @@ if (options.Help) {
 
 if (options.Url != null) {
   if (options.Help) Utils.LogDivider();
-  await RequestUrl(options.Url);
+  
+  var uri = HttpModule.UrlToUri(options.Url);
+  string? content = cache.Get(uri);
+
+  if (content == null) {
+    content = await http.RequestPage(uri);
+    if (content == null) return;
+    cache.Add(uri, content);
+  }
+  else {
+    Console.WriteLine(content);
+  }
 }
 
 if (options.Search != null) {
   if (options.Help || options.Url != null) Utils.LogDivider();
+  var uri = HttpModule.UrlToUri(options.Search);
   throw new NotImplementedException();
-}
-
-return;
-
-async Task RequestUrl(string url) {
-  HttpMessage? message = HttpModule.Get(url);
-
-  if (message == null) {
-    Utils.LogError("Error parsing response");
-    return;
-  }
-
-  if (message.ResponseType == HttpResponseType.Redirect) {
-    int redirectsCount = config.MaxRedirects;
-
-    while (redirectsCount-- > 0 && message.ResponseType != HttpResponseType.Ok) {
-      Console.WriteLine($"Redirect: {url} -> {message.Headers["Location"]}");
-      url     = message.Headers["Location"];
-      message = HttpModule.Get(url);
-
-      if (message == null) {
-        Utils.LogError("Error parsing response");
-        return;
-      }
-    }
-
-    if (redirectsCount == 0) {
-      Console.WriteLine($"Reached max redirect count ({config.MaxRedirects})");
-      return;
-    }
-  }
-
-  var page = new HtmlPage(message.Body, message.Uri);
-  await page.Init();
-  page.Print();
 }

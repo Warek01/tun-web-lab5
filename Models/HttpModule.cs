@@ -6,20 +6,56 @@ using System.IO.Compression;
 
 namespace TumWebLab5.Models;
 
-public static partial class HttpModule {
-  public static HttpMessage? Get(string url) {
-    Regex httpRegex = GetHttpRegex();
+public partial class HttpModule {
+  private readonly Config _config;
+
+  public HttpModule(Config config) {
+    _config = config;
+  }
+
+  public static Uri UrlToUri(string url) {
+    var httpRegex = new Regex(
+      "^HTTPS?://",
+      RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled
+    );
 
     if (!httpRegex.IsMatch(url))
       url = "https://" + url;
 
-    var uri = new Uri(url);
-
-    return Get(uri);
+    return new Uri(url);
   }
 
-  public static HttpMessage? Get(Uri uri) {
+  public HttpMessage? Get(Uri uri) {
     return Request(uri);
+  }
+
+  public async Task<string?> RequestPage(Uri uri) {
+    HttpMessage? message = Get(uri);
+
+    if (message == null) 
+      throw new Exception("Error parsing response");
+
+    if (message.ResponseType == HttpResponseType.Redirect) {
+      int redirectsCount = _config.MaxRedirects;
+
+      while (redirectsCount-- > 0 && message.ResponseType != HttpResponseType.Ok) {
+        Console.WriteLine($"Redirect: {uri} -> {message.Headers["Location"]}");
+        uri     = new Uri(message.Headers["Location"]);
+        message = Get(uri);
+
+        if (message == null) 
+          throw new Exception("Error parsing response");
+      }
+
+      if (redirectsCount == 0) {
+        Console.WriteLine($"Reached max redirect count ({_config.MaxRedirects})");
+        return null;
+      }
+    }
+
+    var page = new HtmlPage(message.Body, message.Uri);
+    await page.Init();
+    return page.GetContent();
   }
 
   private static HttpMessage? Request(Uri uri) {
@@ -86,7 +122,7 @@ public static partial class HttpModule {
   }
 
   private static byte[] GetEncodedRequestString(Uri uri) {
-    return Encoding.UTF8.GetBytes(
+    return Config.GlobalEncoding.GetBytes(
       $"""
        GET {uri.PathAndQuery} HTTP/1.1
        Host: {uri.Host}
@@ -104,15 +140,9 @@ public static partial class HttpModule {
 
   // TODO: fix "The archive entry was compressed using an unsupported compression method."
   private static string DecompressFromGzip(string message) {
-    using var memStream  = new MemoryStream(Encoding.UTF8.GetBytes(message));
+    using var memStream  = new MemoryStream(Config.GlobalEncoding.GetBytes(message));
     using var gzipStream = new GZipStream(memStream, CompressionMode.Decompress);
-    using var reader     = new StreamReader(gzipStream, Encoding.UTF8);
+    using var reader     = new StreamReader(gzipStream, Config.GlobalEncoding);
     return reader.ReadToEnd();
   }
-
-  [GeneratedRegex(
-    "^HTTPS?://",
-    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled
-  )]
-  private static partial Regex GetHttpRegex();
 }

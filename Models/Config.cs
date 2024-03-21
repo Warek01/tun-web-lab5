@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace TumWebLab5.Models;
@@ -6,6 +7,8 @@ namespace TumWebLab5.Models;
 public class Config {
   [JsonPropertyName("MaxRedirects")]
   public int MaxRedirects { get; set; }
+
+  public static Encoding GlobalEncoding { get; set; } = Encoding.Default;
 
   public static Config Read(string fileName) {
     if (!File.Exists(fileName))
