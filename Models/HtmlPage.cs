@@ -26,7 +26,7 @@ public class HtmlPage {
     _document = await Context.OpenAsync(req => req.Content(_originalHtml));
   }
 
-  public string GetContent() {
+  public string GetTextContent() {
     var doc = _document?.Clone() as IDocument;
 
     if (doc?.Body == null) {

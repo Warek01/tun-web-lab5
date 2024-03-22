@@ -1,6 +1,6 @@
 ﻿namespace Go2Web.Models;
 
-public enum HttpResponseType {
+public enum HttpStatus {
   Progress,
   Ok,
   Redirect,

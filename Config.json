@@ -1,3 +1,4 @@
 ﻿{
-  "MaxRedirects": 3
+  "MaxRedirects": 3,
+  "RequestTimeout": 10000
 }

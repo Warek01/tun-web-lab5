@@ -8,18 +8,21 @@ public class Config {
   [JsonPropertyName("MaxRedirects")]
   public int MaxRedirects { get; set; }
 
+  [JsonPropertyName("RequestTimeout")]
+  public int RequestTimeout { get; set; }
+
   public static Encoding GlobalEncoding { get; set; } = Encoding.Default;
 
   public static Config Read(string fileName) {
     if (!File.Exists(fileName))
       throw new FileNotFoundException();
-    
-    var raw = File.ReadAllText(fileName); 
-    var config = JsonSerializer.Deserialize<Config>(raw);
+
+    string  raw    = File.ReadAllText(fileName);
+    Config? config = JsonSerializer.Deserialize<Config>(raw);
 
     if (config == null)
       throw new Exception($"Error parsing config file {fileName}");
-    
+
     return config;
   }
 }

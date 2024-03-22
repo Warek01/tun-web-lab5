@@ -1,6 +1,4 @@
-﻿using TumWebLab5.Models;
-
-namespace Go2Web.Models;
+﻿namespace Go2Web.Models;
 
 public class HttpCache {
   private readonly string _cacheDirectory;
@@ -14,7 +12,7 @@ public class HttpCache {
 
   public void Add(Uri uri, string content) {
     string path = Uri.EscapeDataString(uri.GetLeftPart(UriPartial.Path));
-    
+
     File.WriteAllText(
       Path.Combine(_cacheDirectory, path),
       content,
@@ -23,13 +21,23 @@ public class HttpCache {
   }
 
   public string? Get(Uri uri) {
-    string path = Path.Combine(_cacheDirectory, Uri.EscapeDataString(uri.GetLeftPart(UriPartial.Path)));
-    
+    string path = Path.Combine(_cacheDirectory,
+      Uri.EscapeDataString(uri.GetLeftPart(UriPartial.Path)));
+
     return File.Exists(path)
       ? File.ReadAllText(
         path,
         Config.GlobalEncoding
       )
       : null;
+  }
+
+  public int Clear() {
+    if (!Directory.Exists(_cacheDirectory)) return 0;
+
+    int count = Directory.GetFiles(_cacheDirectory).Length;
+    Directory.Delete(_cacheDirectory, true);
+    Directory.CreateDirectory(_cacheDirectory);
+    return count;
   }
 }
