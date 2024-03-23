@@ -50,39 +50,45 @@ if (options.Url != null) {
   if (showDivider) Utils.LogDivider();
   showDivider = true;
 
-  var     uri     = HttpRequest.UrlToUri(options.Url);
-  string? content = cache.Get(uri);
-
-  if (content == null) {
-    string rawHtml = await GetRawHtml(uri);
-    Console.WriteLine(rawHtml);
-    // var    page    = new HtmlPage(rawHtml, uri);
-    //
-    // await page.Init();
-    // content = page.GetTextContent();
-    //
-    // Console.Write(content);
-    // cache.Add(uri, content);
-  } else {
-    Console.WriteLine(content);
-  }
+  var      uri  = HttpRequest.UrlToUri(options.Url);
+  HtmlPage page = await GetPage(uri);
+  Console.Write(page.GetTextContent());
 }
 
 if (options.Search != null) {
   if (showDivider) Utils.LogDivider();
 
-  var    uri     = new Uri("https://google.com/search?q=" + Uri.EscapeDataString(options.Search));
-  string rawHtml = await GetRawHtml(uri);
+  var      term    = string.Join(' ', options.Search);
+  var      uri     = new Uri("https://google.com/search?q=" + Uri.EscapeDataString(term));
+  HtmlPage page    = await GetPage(uri);
+  string   content = page.GetSearchResults();
+
+  Console.ForegroundColor = ConsoleColor.Green;
+  Console.WriteLine($"Search results for \"{term}\":");
+  Console.ResetColor();
+  Console.WriteLine(content);
 }
 
 return;
 
-async Task<string> GetRawHtml(Uri uri) {
+async Task<HtmlPage> GetPage(Uri uri) {
   var request = new HttpRequest(uri) {
     MaxRedirects   = config.MaxRedirects,
     RequestTimeout = config.RequestTimeout
   };
 
-  await request.Fetch(true);
-  return request.Body!;
+  string? content = cache.Get(uri);
+
+  if (content == null) {
+    await request.Fetch(true);
+    content = request.Body;
+    cache.Add(uri, content!);
+  } else {
+    Console.WriteLine("Found URI in cache ...");
+  }
+
+  var page = new HtmlPage(content!, uri);
+  await page.Init();
+
+  return page;
 }

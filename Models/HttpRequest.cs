@@ -242,7 +242,6 @@ public class HttpRequest : IAsyncDisposable {
 
   private MemoryStream ReadBodyChunked() {
     Console.WriteLine("Reading body by chunks...");
-    Console.WriteLine();
 
     int chunksCount      = 0;
     var buffer           = new MemoryStream();
@@ -273,8 +272,7 @@ public class HttpRequest : IAsyncDisposable {
       currentChunkSize--;
     }
     
-    Console.WriteLine($"Received {chunksCount} chunks");
-    Console.WriteLine();
+    Console.WriteLine($"Received {chunksCount} chunks ...");
 
     buffer.Seek(0, 0);
     return buffer;
@@ -282,7 +280,6 @@ public class HttpRequest : IAsyncDisposable {
 
   private MemoryStream ReadBodyByContentLength() {
     Console.WriteLine("Reading body by Content-Length ...");
-    Console.WriteLine();
 
     int remaining = int.Parse(Headers!["content-length"]);
     var buffer    = new MemoryStream(remaining);
@@ -321,7 +318,6 @@ public class HttpRequest : IAsyncDisposable {
 
   private string Decompress(MemoryStream stream, CompressionMethod method) {
     Console.WriteLine($"Decompressing from {method}...");
-    Console.WriteLine();
     
     using Stream compressionStream = method switch {
       CompressionMethod.Gzip     => new GZipStream(stream, CompressionMode.Decompress),

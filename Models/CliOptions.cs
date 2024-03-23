@@ -7,7 +7,7 @@ public class CliOptions {
   public string? Url { get; set; } = null;
 
   [Option('s', "search", Required = false)]
-  public string? Search { get; set; } = null;
+  public IEnumerable<string>? Search { get; set; } = null;
 
   [Option('h', "help", Required = false)]
   public bool Help { get; set; } = false;
