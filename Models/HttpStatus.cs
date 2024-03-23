@@ -1,8 +1,8 @@
 ﻿namespace Go2Web.Models;
 
 public enum HttpStatus {
-  Progress,
-  Ok,
+  Informational,
+  Success,
   Redirect,
   ClientError,
   ServerError,

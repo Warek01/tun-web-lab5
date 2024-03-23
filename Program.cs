@@ -1,6 +1,5 @@
 ﻿using System.Globalization;
 using System.Text;
-using AngleSharp.Io;
 using CommandLine;
 using Go2Web.Models;
 
@@ -56,13 +55,14 @@ if (options.Url != null) {
 
   if (content == null) {
     string rawHtml = await GetRawHtml(uri);
-    var    page    = new HtmlPage(rawHtml, uri);
-
-    await page.Init();
-    content = page.GetTextContent();
-
-    Console.Write(content);
-    cache.Add(uri, content);
+    Console.WriteLine(rawHtml);
+    // var    page    = new HtmlPage(rawHtml, uri);
+    //
+    // await page.Init();
+    // content = page.GetTextContent();
+    //
+    // Console.Write(content);
+    // cache.Add(uri, content);
   } else {
     Console.WriteLine(content);
   }
@@ -79,9 +79,10 @@ return;
 
 async Task<string> GetRawHtml(Uri uri) {
   var request = new HttpRequest(uri) {
-    MaxRedirects   = config!.MaxRedirects,
-    RequestTimeout = config!.RequestTimeout
+    MaxRedirects   = config.MaxRedirects,
+    RequestTimeout = config.RequestTimeout
   };
 
-  return await request.AsHtml();
+  await request.Fetch(true);
+  return request.Body!;
 }
