@@ -50,18 +50,31 @@ if (options.Url != null) {
   if (showDivider) Utils.LogDivider();
   showDivider = true;
 
-  var      uri  = HttpRequest.UrlToUri(options.Url);
-  HtmlPage page = await GetPage(uri);
-  Console.Write(page.GetTextContent());
+  var    uri         = HttpRequest.UrlToUri(options.Url);
+  string httpContent = await DoRequest(uri);
+
+  if (httpContent.StartsWith('{') && httpContent.EndsWith('}')) {
+    Console.WriteLine("JSON:");
+    Console.WriteLine(JsonHelper.Format(httpContent));
+  } else {
+    var page = new HtmlPage(httpContent, uri);
+
+    await page.Init();
+    Console.Write(page.GetTextContent());
+  }
 }
 
-if (options.Search != null) {
+if (options.Search != null && options.Search.Any()) {
   if (showDivider) Utils.LogDivider();
 
-  var      term    = string.Join(' ', options.Search);
-  var      uri     = new Uri("https://google.com/search?q=" + Uri.EscapeDataString(term));
-  HtmlPage page    = await GetPage(uri);
-  string   content = page.GetSearchResults();
+  var    term        = string.Join(' ', options.Search);
+  var    uri         = new Uri("https://google.com/search?q=" + Uri.EscapeDataString(term));
+  string httpContent = await DoRequest(uri);
+  var    page        = new HtmlPage(httpContent, uri);
+
+  await page.Init();
+
+  string content = page.GetSearchResults();
 
   Console.ForegroundColor = ConsoleColor.Green;
   Console.WriteLine($"Search results for \"{term}\":");
@@ -71,7 +84,7 @@ if (options.Search != null) {
 
 return;
 
-async Task<HtmlPage> GetPage(Uri uri) {
+async Task<string> DoRequest(Uri uri) {
   var request = new HttpRequest(uri) {
     MaxRedirects   = config.MaxRedirects,
     RequestTimeout = config.RequestTimeout
@@ -87,8 +100,5 @@ async Task<HtmlPage> GetPage(Uri uri) {
     Console.WriteLine("Found URI in cache ...");
   }
 
-  var page = new HtmlPage(content!, uri);
-  await page.Init();
-
-  return page;
+  return content!;
 }
