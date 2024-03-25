@@ -78,7 +78,7 @@ public class HttpRequest : IAsyncDisposable {
     if (followRedirects && Status == HttpStatus.Redirect) {
       int redirectsCount = MaxRedirects;
 
-      while (redirectsCount > 0 && Status != HttpStatus.Success) {
+      while (redirectsCount > 0 && Status == HttpStatus.Redirect) {
         Utils.LogInfo($"Redirect: {Uri} -> {Headers!["location"]}");
         redirectsCount--;
 
