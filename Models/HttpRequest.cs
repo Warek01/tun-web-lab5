@@ -13,6 +13,7 @@ public class HttpRequest : IAsyncDisposable {
   public int      MaxRedirects   { get; set; } = 10;
   public int      RequestTimeout { get; set; } = 10000;
   public Encoding AcceptEncoding { get; set; } = Encoding.UTF8;
+  public bool     LogHeaders     { get; set; } = false;
 
   // Response
   public Dictionary<string, string>? Headers       { get; private set; }
@@ -78,7 +79,7 @@ public class HttpRequest : IAsyncDisposable {
       int redirectsCount = MaxRedirects;
 
       while (redirectsCount > 0 && Status != HttpStatus.Success) {
-        Console.WriteLine($"Redirect: {Uri} -> {Headers!["location"]}");
+        Utils.LogInfo($"Redirect: {Uri} -> {Headers!["location"]}");
         redirectsCount--;
 
         Uri = new Uri(Headers["location"]);
@@ -125,6 +126,7 @@ public class HttpRequest : IAsyncDisposable {
   private async Task DoRequest() {
     _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
+    Utils.LogInfo($"Connecting to {Uri}...");
     await _socket.ConnectAsync(Uri.Host, Uri.Port);
 
     _networkStream = new NetworkStream(_socket);
@@ -208,6 +210,9 @@ public class HttpRequest : IAsyncDisposable {
       string key   = parts[0].Trim();
       string value = string.Join(':', parts[1..]).Trim();
 
+      if (LogHeaders) 
+        Utils.LogKeyValuePair(key, value);
+
       Headers![key] = value;
     }
   }
@@ -241,7 +246,7 @@ public class HttpRequest : IAsyncDisposable {
   }
 
   private MemoryStream ReadBodyChunked() {
-    Console.WriteLine("Reading body by chunks...");
+    Utils.LogInfo("Reading body by chunks...");
 
     int chunksCount      = 0;
     var buffer           = new MemoryStream();
@@ -253,9 +258,9 @@ public class HttpRequest : IAsyncDisposable {
 
         if (line.Length == 0)
           line = ExtractOneLine();
-        
+
         currentChunkSize = int.Parse(line, NumberStyles.HexNumber);
-        
+
         if (currentChunkSize == 0) break;
 
         chunksCount++;
@@ -271,15 +276,15 @@ public class HttpRequest : IAsyncDisposable {
       buffer.WriteByte(b);
       currentChunkSize--;
     }
-    
-    Console.WriteLine($"Received {chunksCount} chunks ...");
+
+    Utils.LogInfo($"Received {chunksCount} chunks...");
 
     buffer.Seek(0, 0);
     return buffer;
   }
 
   private MemoryStream ReadBodyByContentLength() {
-    Console.WriteLine("Reading body by Content-Length ...");
+    Utils.LogInfo("Reading body by Content-Length...");
 
     int remaining = int.Parse(Headers!["content-length"]);
     var buffer    = new MemoryStream(remaining);
@@ -317,8 +322,8 @@ public class HttpRequest : IAsyncDisposable {
   }
 
   private string Decompress(MemoryStream stream, CompressionMethod method) {
-    Console.WriteLine($"Decompressing from {method}...");
-    
+    Utils.LogInfo($"Decompressing from {method}...");
+
     using Stream compressionStream = method switch {
       CompressionMethod.Gzip     => new GZipStream(stream, CompressionMode.Decompress),
       CompressionMethod.Deflate  => new DeflateStream(stream, CompressionMode.Decompress),

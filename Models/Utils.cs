@@ -14,6 +14,25 @@ public static class Utils {
     Console.ResetColor();
   }
 
+  public static void LogWarning(string text) {
+    Console.ForegroundColor = ConsoleColor.Yellow;
+    Console.WriteLine(text);
+    Console.ResetColor();
+  }
+
+  public static void LogKeyValuePair(string key, string value) {
+    Console.ForegroundColor = ConsoleColor.DarkBlue;
+    Console.Write(key);
+    Console.ResetColor();
+    Console.WriteLine($": {value}");
+  }
+
+  public static void LogInfo(string text) {
+    Console.ForegroundColor = ConsoleColor.Green;
+    Console.WriteLine(text);
+    Console.ResetColor();
+  }
+
   public static void LogDivider() {
     Console.WriteLine("--------------------");
   }

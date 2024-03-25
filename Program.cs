@@ -10,7 +10,7 @@ Config.GlobalEncoding                 = Encoding.UTF8;
 using var cliParser = new Parser(s => {
   s.AutoHelp               = false;
   s.AutoVersion            = false;
-  s.CaseSensitive          = false;
+  s.CaseSensitive          = true;
   s.IgnoreUnknownArguments = true;
   s.ParsingCulture         = CultureInfo.InvariantCulture;
 });
@@ -18,24 +18,16 @@ var  options     = Parser.Default.ParseArguments<CliOptions>(args).Value;
 var  config      = Config.Read("Config.json");
 var  cache       = new HttpCache("Cache");
 bool showDivider = false;
+bool ignoreCache = false;
 
 if (options.Help) {
-  Console.WriteLine(
-    """
-    go2web - perform a web HTTP request
-
-    Options:
-      -u --url <URL>          Make an HTTP request to the specified URL and print the response
-    
-      -s --search <search-term>          Make an HTTP request to search the term using your favorite search engine and print top 10 results
-    
-      -h --help          Show this help
-    
-      -c --clear-cache          Clears the cache
-    """
-  );
-
+  Console.WriteLine(CliOptions.HelpString);
   showDivider = true;
+}
+
+if (options.Headers) {
+  Utils.LogWarning("Ignoring cache to read headers ...");
+  ignoreCache = true;
 }
 
 if (options.ClearCache) {
@@ -43,7 +35,7 @@ if (options.ClearCache) {
   showDivider = true;
 
   int clearedCount = cache.Clear();
-  Console.WriteLine($"Cleared {clearedCount} cache entr{(clearedCount == 1 ? "y" : "ies")}");
+  Utils.LogWarning($"Cleared {clearedCount} cache {(clearedCount == 1 ? "entry" : "entries")}");
 }
 
 if (options.Url != null) {
@@ -87,10 +79,11 @@ return;
 async Task<string> DoRequest(Uri uri) {
   var request = new HttpRequest(uri) {
     MaxRedirects   = config.MaxRedirects,
-    RequestTimeout = config.RequestTimeout
+    RequestTimeout = config.RequestTimeout,
+    LogHeaders     = options.Headers,
   };
 
-  string? content = cache.Get(uri);
+  string? content = ignoreCache ? null : cache.Get(uri);
 
   if (content == null) {
     await request.Fetch(true);
