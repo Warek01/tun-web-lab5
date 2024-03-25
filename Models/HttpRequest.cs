@@ -23,10 +23,12 @@ public class HttpRequest : IAsyncDisposable {
   public string?                     Version       { get; private set; }
   public string?                     Body          { get; private set; }
   public Uri                         Uri           { get; private set; }
+  public bool                        IsSecure      { get; set; }
 
   private const int  MaxHeaderLineLength = 8196;
   private const byte Cr                  = (byte)'\r';
   private const byte Lf                  = (byte)'\n';
+  private const int  SecurePort          = 443;
 
   private readonly Regex _requestLineRegex =
     new Regex(@"HTTP/(?<version>.+?) (?<code>\d+?) (?<message>.+)");
@@ -124,17 +126,22 @@ public class HttpRequest : IAsyncDisposable {
   }
 
   private async Task DoRequest() {
-    _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+    IsSecure = Uri.Port == SecurePort;
+    _socket  = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
     Utils.LogInfo($"Connecting to {Uri}...");
     await _socket.ConnectAsync(Uri.Host, Uri.Port);
 
     _networkStream = new NetworkStream(_socket);
-    _sslStream     = new SslStream(_networkStream);
-
-    await _sslStream.AuthenticateAsClientAsync(Uri.Host);
     byte[] requestBytes = GetEncodedRequestString();
-    await _sslStream.WriteAsync(requestBytes);
+
+    if (IsSecure) {
+      _sslStream = new SslStream(_networkStream);
+      await _sslStream.AuthenticateAsClientAsync(Uri.Host);
+      await _sslStream.WriteAsync(requestBytes);
+    } else {
+      await _networkStream.WriteAsync(requestBytes);
+    }
 
     ExtractRequestLine();
     ExtractHeaders();
@@ -142,12 +149,13 @@ public class HttpRequest : IAsyncDisposable {
   }
 
   private string ExtractOneLine() {
-    int  position = 0;
-    var  buffer   = new byte[MaxHeaderLineLength];
-    byte prevByte = 0;
+    int    position = 0;
+    var    buffer   = new byte[MaxHeaderLineLength];
+    byte   prevByte = 0;
+    Stream stream   = IsSecure ? _sslStream! : _networkStream!;
 
     while (position < MaxHeaderLineLength) {
-      int readInt = _sslStream!.ReadByte();
+      int readInt = stream.ReadByte();
 
       if (readInt == -1)
         throw new Exception("Reached end of stream");
@@ -210,7 +218,7 @@ public class HttpRequest : IAsyncDisposable {
       string key   = parts[0].Trim();
       string value = string.Join(':', parts[1..]).Trim();
 
-      if (LogHeaders) 
+      if (LogHeaders)
         Utils.LogKeyValuePair(key, value);
 
       Headers![key] = value;
@@ -248,9 +256,10 @@ public class HttpRequest : IAsyncDisposable {
   private MemoryStream ReadBodyChunked() {
     Utils.LogInfo("Reading body by chunks...");
 
-    int chunksCount      = 0;
-    var buffer           = new MemoryStream();
-    int currentChunkSize = 0;
+    int    chunksCount      = 0;
+    var    buffer           = new MemoryStream();
+    int    currentChunkSize = 0;
+    Stream stream           = IsSecure ? _sslStream! : _networkStream!;
 
     while (true) {
       if (currentChunkSize == 0) {
@@ -266,7 +275,7 @@ public class HttpRequest : IAsyncDisposable {
         chunksCount++;
       }
 
-      int readInt = _sslStream!.ReadByte();
+      int readInt = stream.ReadByte();
 
       if (readInt == -1)
         throw new Exception("Reached end of stream");
@@ -286,11 +295,12 @@ public class HttpRequest : IAsyncDisposable {
   private MemoryStream ReadBodyByContentLength() {
     Utils.LogInfo("Reading body by Content-Length...");
 
-    int remaining = int.Parse(Headers!["content-length"]);
-    var buffer    = new MemoryStream(remaining);
+    int    remaining = int.Parse(Headers!["content-length"]);
+    var    buffer    = new MemoryStream(remaining);
+    Stream stream    = IsSecure ? _sslStream! : _networkStream!;
 
     do {
-      int readInt = _sslStream!.ReadByte();
+      int readInt = stream.ReadByte();
 
       if (readInt == -1)
         throw new Exception("Reached end of stream");
