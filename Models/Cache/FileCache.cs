@@ -1,0 +1,49 @@
+﻿using Go2Web.Models.Http;
+
+namespace Go2Web.Models.Cache;
+
+public class FileCache : ICache {
+  private readonly string _cacheDirectory;
+
+  public FileCache(string cacheDirectory) {
+    _cacheDirectory = cacheDirectory;
+
+    if (!Directory.Exists(cacheDirectory))
+      Directory.CreateDirectory(cacheDirectory);
+  }
+
+  public void Add(Uri uri, string content) {
+    string path = Uri.EscapeDataString(uri.GetLeftPart(UriPartial.Path));
+
+    File.WriteAllText(
+      Path.Combine(_cacheDirectory, path),
+      content,
+      Config.GlobalEncoding
+    );
+  }
+
+  public string? Get(Uri uri) {
+    string path = Path.Combine(_cacheDirectory,
+      Uri.EscapeDataString(uri.GetLeftPart(UriPartial.Path)));
+
+    return File.Exists(path)
+      ? File.ReadAllText(
+        path,
+        Config.GlobalEncoding
+      )
+      : null;
+  }
+
+  public int Clear() {
+    if (!Directory.Exists(_cacheDirectory)) return 0;
+
+    int count = Directory.GetFiles(_cacheDirectory).Length;
+    Directory.Delete(_cacheDirectory, true);
+    Directory.CreateDirectory(_cacheDirectory);
+    return count;
+  }
+
+  public void DeleteEntry() {
+    
+  }
+}

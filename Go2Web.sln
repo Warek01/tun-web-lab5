@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TumWebLab5", "TumWebLab5.csproj", "{2014622F-6E34-4667-9B48-B04E82F8B79E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Go2Web", "Go2Web.csproj", "{2014622F-6E34-4667-9B48-B04E82F8B79E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
