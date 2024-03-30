@@ -1,6 +1,6 @@
-﻿namespace Go2Web.Models;
+﻿namespace Go2Web.Models.Http;
 
-public enum HttpStatus {
+public enum Status {
   Informational,
   Success,
   Redirect,

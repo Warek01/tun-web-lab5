@@ -2,6 +2,8 @@
 using System.Text;
 using CommandLine;
 using Go2Web.Models;
+using Go2Web.Models.Cache;
+using Go2Web.Models.Http;
 
 Thread.CurrentThread.CurrentCulture   = CultureInfo.InvariantCulture;
 Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
@@ -16,7 +18,7 @@ using var cliParser = new Parser(s => {
 });
 var  options     = Parser.Default.ParseArguments<CliOptions>(args).Value;
 var  config      = Config.Read("Config.json");
-var  cache       = new HttpCache("Cache");
+var  cache       = new FileCache("Cache");
 bool showDivider = false;
 bool ignoreCache = false;
 
@@ -42,7 +44,7 @@ if (options.Url != null) {
   if (showDivider) Utils.LogDivider();
   showDivider = true;
 
-  var    uri         = HttpRequest.UrlToUri(options.Url);
+  var    uri         = Request.UrlToUri(options.Url);
   string httpContent = await DoRequest(uri);
 
   if (httpContent.StartsWith('{') && httpContent.EndsWith('}')) {
@@ -77,7 +79,7 @@ if (options.Search != null && options.Search.Any()) {
 return;
 
 async Task<string> DoRequest(Uri uri) {
-  var request = new HttpRequest(uri) {
+  var request = new Request(uri) {
     MaxRedirects   = config.MaxRedirects,
     RequestTimeout = config.RequestTimeout,
     LogHeaders     = options.Headers,
@@ -87,11 +89,11 @@ async Task<string> DoRequest(Uri uri) {
 
   if (content == null) {
     await request.Fetch(true);
-    content = request.Body;
-    cache.Add(uri, content!);
+    content = request.Response!.Body;
+    cache.Add(uri, content);
   } else {
     Console.WriteLine("Found URI in cache ...");
   }
 
-  return content!;
+  return content;
 }

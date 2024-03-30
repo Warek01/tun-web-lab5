@@ -6,24 +6,17 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Timer = System.Threading.Timer;
 
-namespace Go2Web.Models;
+namespace Go2Web.Models.Http;
 
-public class HttpRequest : IAsyncDisposable {
+public class Request : IAsyncDisposable {
   // Config
-  public int      MaxRedirects   { get; set; } = 10;
-  public int      RequestTimeout { get; set; } = 10000;
-  public Encoding AcceptEncoding { get; set; } = Encoding.UTF8;
-  public bool     LogHeaders     { get; set; } = false;
+  public int                        MaxRedirects   { get; set; } = 10;
+  public int                        RequestTimeout { get; set; } = 10000;
+  public bool                       LogHeaders     { get; set; }
+  public Dictionary<string, string> Headers        { get; }
 
-  // Response
-  public Dictionary<string, string>? Headers       { get; private set; }
-  public HttpStatus?                 Status        { get; private set; }
-  public int?                        StatusCode    { get; private set; }
-  public string?                     StatusMessage { get; private set; }
-  public string?                     Version       { get; private set; }
-  public string?                     Body          { get; private set; }
-  public Uri                         Uri           { get; private set; }
-  public bool                        IsSecure      { get; set; }
+  public Response? Response { get; private set; }
+  public Uri       Uri      { get; private set; }
 
   private const int  MaxHeaderLineLength = 8196;
   private const byte Cr                  = (byte)'\r';
@@ -31,17 +24,31 @@ public class HttpRequest : IAsyncDisposable {
   private const int  SecurePort          = 443;
 
   private readonly Regex _requestLineRegex =
-    new Regex(@"HTTP/(?<version>.+?) (?<code>\d+?) (?<message>.+)");
+    new Regex(@"^HTTP/(?<Version>.+?)\s(?<Code>\d+?)\s(?<Message>.+)$");
 
   private string?        _requestLine;
   private Timer?         _timer;
+  private Stream?        _receiveStream;
   private SslStream?     _sslStream;
   private NetworkStream? _networkStream;
   private Socket?        _socket;
 
-  public HttpRequest(Uri uri) {
-    Uri     = uri;
-    Headers = new Dictionary<string, string>();
+  public Request(string url) : this(UrlToUri(url)) { }
+
+  public Request(Uri uri) {
+    Uri = uri;
+
+    Headers = new Dictionary<string, string> {
+      ["Connection"]      = "keep-alive",
+      ["User-Agent"]      = "go2web client",
+      ["Accept"]          = "text/html, application/json; charset=utf-8",
+      ["Accept-Encoding"] = "gzip, br, deflate, identity",
+      ["Accept-Language"] = "en-US",
+      ["Cache-Control"]   = "no-cache; max-age=0",
+      ["Content-Length"]  = "0",
+      ["Cookie"]          = "",
+      ["DNT"]             = "1",
+    };
   }
 
   public async ValueTask DisposeAsync() {
@@ -56,6 +63,9 @@ public class HttpRequest : IAsyncDisposable {
       _socket.Close();
       _socket.Dispose();
     }
+
+    if (_timer != null)
+      await _timer.DisposeAsync();
   }
 
   public static Uri UrlToUri(string url) {
@@ -77,22 +87,16 @@ public class HttpRequest : IAsyncDisposable {
   public async Task Fetch(bool followRedirects) {
     await Fetch();
 
-    if (followRedirects && Status == HttpStatus.Redirect) {
+    if (followRedirects && Response!.Status == Status.Redirect) {
       int redirectsCount = MaxRedirects;
 
-      while (redirectsCount > 0 && Status == HttpStatus.Redirect) {
-        Utils.LogInfo($"Redirect: {Uri} -> {Headers!["location"]}");
+      while (redirectsCount > 0 && Response!.Status == Status.Redirect) {
+        string location = Response.Headers["Location"];
+
+        Utils.LogInfo($"Redirect: {Uri} -> {location}");
         redirectsCount--;
-
-        Uri = new Uri(Headers["location"]);
-
-        Headers       = null;
-        StatusCode    = null;
-        _requestLine  = null;
-        Status        = null;
-        Body          = null;
-        StatusMessage = null;
-        Version       = null;
+        Uri      = new Uri(location);
+        Response = null;
 
         await Fetch();
       }
@@ -107,41 +111,42 @@ public class HttpRequest : IAsyncDisposable {
   /// </summary>
   public async Task Fetch() {
     var tcs = new TaskCompletionSource<bool>();
-
+    Response = new Response();
     _timer = new Timer(
       _ => tcs.TrySetResult(true),
       null,
       RequestTimeout,
       Timeout.Infinite
     );
-
     Task responseTask   = DoRequest();
     int  firstCompleted = Task.WaitAny(new Task[] { tcs.Task, responseTask });
 
-    if (firstCompleted == 0) {
+    if (firstCompleted == 0)
       throw new TimeoutException("Request timed out");
-    }
 
     await _timer.DisposeAsync();
   }
 
   private async Task DoRequest() {
-    IsSecure = Uri.Port == SecurePort;
-    _socket  = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+    _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
     Utils.LogInfo($"Connecting to {Uri}...");
     await _socket.ConnectAsync(Uri.Host, Uri.Port);
 
-    _networkStream = new NetworkStream(_socket);
-    byte[] requestBytes = GetEncodedRequestString();
+    if (!_socket.Connected)
+      throw new Exception($"Could not connect to {Uri}");
 
-    if (IsSecure) {
+    _receiveStream = _networkStream = new NetworkStream(_socket, FileAccess.ReadWrite, false);
+    byte[] requestBytes             = GetEncodedRequestString();
+
+    if (Uri.Port == SecurePort) {
       _sslStream = new SslStream(_networkStream);
       await _sslStream.AuthenticateAsClientAsync(Uri.Host);
       await _sslStream.WriteAsync(requestBytes);
-    } else {
-      await _networkStream.WriteAsync(requestBytes);
+      _receiveStream = _sslStream;
     }
+
+    await _receiveStream.WriteAsync(requestBytes);
 
     ExtractRequestLine();
     ExtractHeaders();
@@ -149,26 +154,24 @@ public class HttpRequest : IAsyncDisposable {
   }
 
   private string ExtractOneLine() {
-    int    position = 0;
-    var    buffer   = new byte[MaxHeaderLineLength];
-    byte   prevByte = 0;
-    Stream stream   = IsSecure ? _sslStream! : _networkStream!;
+    int  position = 0;
+    var  buffer   = new byte[MaxHeaderLineLength];
+    byte prevByte = 0;
 
     while (position < MaxHeaderLineLength) {
-      int readInt = stream.ReadByte();
+      int readInt = _receiveStream!.ReadByte();
 
       if (readInt == -1)
         throw new Exception("Reached end of stream");
 
       var currentByte = (byte)readInt;
 
-      if (currentByte == Lf && prevByte == Cr) {
-        return AcceptEncoding.GetString(
+      if (currentByte == Lf && prevByte == Cr)
+        return Encoding.UTF8.GetString(
           buffer,
           0,
           position - 1 // Ignore last byte because its CR
         );
-      }
 
       prevByte         = currentByte;
       buffer[position] = currentByte;
@@ -183,23 +186,23 @@ public class HttpRequest : IAsyncDisposable {
     Match match = _requestLineRegex.Match(_requestLine);
 
     int.TryParse(
-      match.Groups["code"].Value,
+      match.Groups["Code"].Value,
       NumberStyles.Integer,
       CultureInfo.InvariantCulture,
       out int code
     );
 
-    StatusCode    = code;
-    Version       = match.Groups["version"].Value.Trim();
-    StatusMessage = match.Groups["message"].Value.Trim();
+    Response!.StatusCode    = code;
+    Response!.Version       = match.Groups["Version"].Value.Trim();
+    Response!.StatusMessage = match.Groups["Message"].Value.Trim();
 
-    Status = StatusCode switch {
-      >= 100 and <= 199 => HttpStatus.Informational,
-      <= 299            => HttpStatus.Success,
-      <= 399            => HttpStatus.Redirect,
-      <= 499            => HttpStatus.ClientError,
-      <= 599            => HttpStatus.ServerError,
-      _                 => HttpStatus.Custom
+    Response!.Status = Response!.StatusCode switch {
+      >= 100 and <= 199 => Status.Informational,
+      <= 299            => Status.Success,
+      <= 399            => Status.Redirect,
+      <= 499            => Status.ClientError,
+      <= 599            => Status.ServerError,
+      _                 => Status.Custom
     };
   }
 
@@ -207,42 +210,40 @@ public class HttpRequest : IAsyncDisposable {
   /// Extract headers from stream in lowercase
   /// </summary>
   private void ExtractHeaders() {
-    Headers = new Dictionary<string, string>();
-
     while (true) {
       string line = ExtractOneLine();
 
       if (line.Length == 0) return;
 
-      var    parts = line.ToLower().Split(":");
+      var    parts = line.Split(":");
       string key   = parts[0].Trim();
       string value = string.Join(':', parts[1..]).Trim();
 
       if (LogHeaders)
         Utils.LogKeyValuePair(key, value);
 
-      Headers![key] = value;
+      Response!.Headers[key] = value;
     }
   }
 
   private void ExtractBody() {
     MemoryStream buffer;
 
-    if (Headers!.TryGetValue("transfer-encoding", out string? value) && value == "chunked")
+    if (Response!.Headers.TryGetValue("Transfer-Encoding", out string? value) && value == "chunked")
       buffer = ReadBodyChunked();
-    else if (Headers!.ContainsKey("content-length"))
+    else if (Response!.Headers.ContainsKey("Content-Length"))
       buffer = ReadBodyByContentLength();
     else
       throw new Exception("Ambiguous transfer encoding");
 
-    Headers!.TryGetValue("content-encoding", out string? rawEncoding);
+    Response!.Headers.TryGetValue("Content-Encoding", out string? rawEncoding);
 
     if (rawEncoding == null) {
-      Body = Decompress(buffer, CompressionMethod.Identity);
+      Response!.Body = Decompress(buffer, CompressionMethod.Identity);
       return;
     }
 
-    CompressionMethod compressionMethod = rawEncoding.ToLower() switch {
+    CompressionMethod compressionMethod = rawEncoding switch {
       "br"       => CompressionMethod.Brotli,
       "deflate"  => CompressionMethod.Deflate,
       "identity" => CompressionMethod.Identity,
@@ -250,16 +251,15 @@ public class HttpRequest : IAsyncDisposable {
       _          => throw new Exception("Unknown compression method")
     };
 
-    Body = Decompress(buffer, compressionMethod);
+    Response!.Body = Decompress(buffer, compressionMethod);
   }
 
   private MemoryStream ReadBodyChunked() {
     Utils.LogInfo("Reading body by chunks...");
 
-    int    chunksCount      = 0;
-    var    buffer           = new MemoryStream();
-    int    currentChunkSize = 0;
-    Stream stream           = IsSecure ? _sslStream! : _networkStream!;
+    int chunksCount      = 0;
+    var buffer           = new MemoryStream();
+    int currentChunkSize = 0;
 
     while (true) {
       if (currentChunkSize == 0) {
@@ -275,7 +275,7 @@ public class HttpRequest : IAsyncDisposable {
         chunksCount++;
       }
 
-      int readInt = stream.ReadByte();
+      int readInt = _receiveStream!.ReadByte();
 
       if (readInt == -1)
         throw new Exception("Reached end of stream");
@@ -295,12 +295,11 @@ public class HttpRequest : IAsyncDisposable {
   private MemoryStream ReadBodyByContentLength() {
     Utils.LogInfo("Reading body by Content-Length...");
 
-    int    remaining = int.Parse(Headers!["content-length"]);
-    var    buffer    = new MemoryStream(remaining);
-    Stream stream    = IsSecure ? _sslStream! : _networkStream!;
+    int remaining = int.Parse(Response!.Headers["Content-Length"]);
+    var buffer    = new MemoryStream(remaining);
 
     do {
-      int readInt = stream.ReadByte();
+      int readInt = _receiveStream!.ReadByte();
 
       if (readInt == -1)
         throw new Exception("Reached end of stream");
@@ -315,20 +314,16 @@ public class HttpRequest : IAsyncDisposable {
   }
 
   private byte[] GetEncodedRequestString() {
-    return AcceptEncoding.GetBytes(
-      $"""
-       GET {Uri.PathAndQuery} HTTP/1.1
-       Host: {Uri.Host}
-       Connection: keep-alive
-       Accept: text/html, application/json; charset=utf-8
-       User-Agent: go2web client
-       Accept-Encoding: gzip, br, deflate, identity
-       Accept-Language: en-US
-       Cache-Control: no-cache; max-age=0
+    var sb = new StringBuilder();
+    sb.Append("GET ").Append(Uri.PathAndQuery).AppendLine(" HTTP/1.1");
+    sb.Append("Host: ").AppendLine(Uri.Host);
 
+    foreach (var (key, value) in Headers)
+      sb.Append(key).Append(": ").AppendLine(value);
 
-       """
-    );
+    sb.AppendLine();
+    
+    return Encoding.UTF8.GetBytes(sb.ToString());
   }
 
   private string Decompress(MemoryStream stream, CompressionMethod method) {
@@ -342,7 +337,7 @@ public class HttpRequest : IAsyncDisposable {
       _                          => throw new Exception("Unknown compression method")
     };
 
-    using var reader = new StreamReader(compressionStream, AcceptEncoding);
+    using var reader = new StreamReader(compressionStream, Encoding.UTF8);
     return reader.ReadToEnd();
   }
 }

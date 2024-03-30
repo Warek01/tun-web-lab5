@@ -1,9 +1,11 @@
-﻿namespace Go2Web.Models;
+﻿using Go2Web.Models.Http;
 
-public class HttpCache {
+namespace Go2Web.Models.Cache;
+
+public class FileCache : ICache {
   private readonly string _cacheDirectory;
 
-  public HttpCache(string cacheDirectory) {
+  public FileCache(string cacheDirectory) {
     _cacheDirectory = cacheDirectory;
 
     if (!Directory.Exists(cacheDirectory))
@@ -39,5 +41,9 @@ public class HttpCache {
     Directory.Delete(_cacheDirectory, true);
     Directory.CreateDirectory(_cacheDirectory);
     return count;
+  }
+
+  public void DeleteEntry() {
+    
   }
 }

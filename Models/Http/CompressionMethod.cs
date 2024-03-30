@@ -1,4 +1,4 @@
-﻿namespace Go2Web.Models;
+﻿namespace Go2Web.Models.Http;
 
 public enum CompressionMethod {
   Identity,
